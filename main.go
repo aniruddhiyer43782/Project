@@ -6,26 +6,27 @@ import (
 	"backup-x/web"
 	"embed"
 	"flag"
-	"log"
 	"net"
-	"net/http"
 	"os"
+
+	"log"
+	"net/http"
 	"time"
 
 	"github.com/kardianos/service"
 )
 
-// Listening address
-var listen = flag.String("l", ":9977", "Listening address")
+// 监听地址
+var listen = flag.String("l", ":9977", "监听地址")
 
-// Service management
-var serviceType = flag.String("s", "", "Service management: supports install, uninstall")
+// 服务管理
+var serviceType = flag.String("s", "", "服务管理, 支持install, uninstall")
 
-// Default backup path is the current working directory
+// 默认备份路径当前运行目录
 var backupDirDefault, _ = os.Getwd()
 
-// Custom backup directory path
-var backupDir = flag.String("d", backupDirDefault, "Custom backup directory path")
+// 配置文件路径
+var backupDir = flag.String("d", backupDirDefault, "自定义备份目录地址")
 
 //go:embed static
 var staticEmbededFiles embed.FS
@@ -33,14 +34,13 @@ var staticEmbededFiles embed.FS
 //go:embed favicon.ico
 var faviconEmbededFile embed.FS
 
-// Version
+// version
 var version = "DEV"
 
 func main() {
 	flag.Parse()
-
 	if _, err := net.ResolveTCPAddr("tcp", *listen); err != nil {
-		log.Fatalf("Error resolving listening address: %s", err)
+		log.Fatalf("解析监听地址异常，%s", err)
 	}
 
 	os.Setenv(web.VersionEnv, version)
@@ -57,15 +57,15 @@ func main() {
 			s := getService()
 			status, _ := s.Status()
 			if status != service.StatusUnknown {
-				// Run as a service
+				// 以服务方式运行
 				s.Run()
 			} else {
-				// Run in non-service mode
+				// 非服务方式运行
 				switch s.Platform() {
 				case "windows-service":
-					log.Println("You can install the service using: .\\backup-x.exe -s install")
+					log.Println("可使用 .\\backup-x.exe -s install 安装服务运行")
 				default:
-					log.Println("You can install the service using: ./backup-x -s install")
+					log.Println("可使用 ./backup-x -s install 安装服务运行")
 				}
 				run(100 * time.Millisecond)
 			}
@@ -73,39 +73,36 @@ func main() {
 	}
 }
 
-// Serve static files
 func staticFsFunc(writer http.ResponseWriter, request *http.Request) {
 	http.FileServer(http.FS(staticEmbededFiles)).ServeHTTP(writer, request)
 }
 
-// Serve favicon
 func faviconFsFunc(writer http.ResponseWriter, request *http.Request) {
 	http.FileServer(http.FS(faviconEmbededFile)).ServeHTTP(writer, request)
 }
 
-// run starts the backup server and loop
 func run(firstDelay time.Duration) {
-	// Serve static files
+	// 启动静态文件服务
 	http.HandleFunc("/static/", web.BasicAuth(staticFsFunc))
 	http.HandleFunc("/favicon.ico", web.BasicAuth(faviconFsFunc))
 
-	// Web handlers
 	http.HandleFunc("/", web.BasicAuth(web.WritingConfig))
 	http.HandleFunc("/save", web.BasicAuth(web.Save))
 	http.HandleFunc("/logs", web.BasicAuth(web.Logs))
 	http.HandleFunc("/clearLog", web.BasicAuth(web.ClearLog))
 	http.HandleFunc("/webhookTest", web.BasicAuth(web.WebhookTest))
 
-	// Change working directory
+	// 改变工作目录
 	os.Chdir(*backupDir)
 
-	// Run backup loops
+	// 运行
 	go client.DeleteOldBackup()
 	go client.RunLoop(firstDelay)
 
 	err := http.ListenAndServe(*listen, nil)
+
 	if err != nil {
-		log.Println("Error starting server, please check if the port is already in use:", err)
+		log.Println("启动端口发生异常, 请检查端口是否被占用", err)
 		time.Sleep(time.Minute)
 	}
 }
@@ -113,40 +110,38 @@ func run(firstDelay time.Duration) {
 type program struct{}
 
 func (p *program) Start(s service.Service) error {
-	// Start should not block. Do the actual work asynchronously.
+	// Start should not block. Do the actual work async.
 	go p.run()
 	return nil
 }
-
 func (p *program) run() {
-	// Service starts after 20-second delay to wait for network readiness
+	// 服务运行，延时20秒运行，等待网络
 	run(20 * time.Second)
 }
-
 func (p *program) Stop(s service.Service) error {
-	// Stop should not block
+	// Stop should not block. Return with a few seconds.
 	return nil
 }
 
-// getService creates a new service configuration
 func getService() service.Service {
 	options := make(service.KeyValue)
 	var depends []string
 
-	// Ensure service waits for network before starting
+	// 确保服务等待网络就绪后再启动
 	switch service.ChosenSystem().String() {
 	case "windows-service":
-		// Set Windows service to delayed automatic start
+		// 将 Windows 服务的启动类型设为自动(延迟启动)
 		options["DelayedAutoStart"] = true
 	default:
-		// Add network dependency for Systemd
-		depends = append(depends, "Requires=network.target", "After=network-online.target")
+		// 向 Systemd 添加网络依赖
+		depends = append(depends, "Requires=network.target",
+			"After=network-online.target")
 	}
 
 	svcConfig := &service.Config{
 		Name:         "backup-x",
 		DisplayName:  "backup-x",
-		Description:  "Database/File backup tool with web interface",
+		Description:  "带Web界面的数据库/文件备份增强工具",
 		Arguments:    []string{"-l", *listen, "-d", *backupDir},
 		Dependencies: depends,
 		Option:       options,
@@ -160,44 +155,47 @@ func getService() service.Service {
 	return s
 }
 
-// uninstallService uninstalls the service
+// 卸载服务
 func uninstallService() {
 	s := getService()
+
 	status, _ := s.Status()
+	// 处理卸载
 	if status != service.StatusUnknown {
 		s.Stop()
 		if err := s.Uninstall(); err == nil {
-			log.Println("backup-x service uninstalled successfully!")
+			log.Println("backup-x 服务卸载成功!")
 		} else {
-			log.Printf("Failed to uninstall backup-x service, ERR: %s\n", err)
+			log.Printf("backup-x 服务卸载失败, ERR: %s\n", err)
 		}
 	} else {
-		log.Println("backup-x service is not installed")
+		log.Printf("backup-x 服务未安装")
 	}
 }
 
-// installService installs the service
+// 安装服务
 func installService() {
 	s := getService()
+
 	status, err := s.Status()
 	if err != nil && status == service.StatusUnknown {
-		// Service unknown, create service
+		// 服务未知，创建服务
 		if err = s.Install(); err == nil {
 			s.Start()
-			log.Println("backup-x service installed successfully! The program will run continuously, including after restart.")
+			log.Println("安装 backup-x 服务成功! 程序会一直运行, 包括重启后。")
 			return
 		}
 
-		log.Printf("Failed to install backup-x service, ERR: %s\n", err)
+		log.Printf("安装 backup-x 服务失败, ERR: %s\n", err)
 		switch s.Platform() {
 		case "windows-service":
-			log.Println("Make sure to run: .\\backup-x.exe -s install")
+			log.Println("请确保使用如下命令: .\\backup-x.exe -s install")
 		default:
-			log.Println("Make sure to run: ./backup-x -s install")
+			log.Println("请确保使用如下命令: ./backup-x -s install")
 		}
 	}
 
 	if status != service.StatusUnknown {
-		log.Println("backup-x service is already installed, no need to install again")
+		log.Println("backup-x 服务已安装, 无需再次安装")
 	}
 }
