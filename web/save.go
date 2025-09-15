@@ -12,20 +12,20 @@ import (
 	"time"
 )
 
-// 服务启动时间
+
 var startTime = time.Now()
 
-// 保存限制时间
+
 var saveLimit = time.Duration(30 * time.Minute)
 
-// Save 保存
+
 func Save(writer http.ResponseWriter, request *http.Request) {
 	oldConf, _ := entity.GetConfigCache()
 	conf := &entity.Config{}
 
 	if oldConf.Password == "" {
 		if time.Since(startTime) > saveLimit {
-			writer.Write([]byte(fmt.Sprintf("需在 %s 之前完成用户名密码设置,请重启backup-x", startTime.Add(saveLimit).Format("2006-01-02 15:04:05"))))
+			writer.Write([]byte(fmt.Sprintf("Username and password must be set before %s, please restart backup-x", startTime.Add(saveLimit).Format("2006-01-02 15:04:05"))))
 			return
 		}
 	}
@@ -34,24 +34,24 @@ func Save(writer http.ResponseWriter, request *http.Request) {
 	if conf.EncryptKey == "" {
 		encryptKey, err := util.GenerateEncryptKey()
 		if err != nil {
-			writer.Write([]byte("生成Key失败"))
+			writer.Write([]byte("Failed to generate key"))
 			return
 		}
 		conf.EncryptKey = encryptKey
 	}
 
-	// 覆盖以前的配置
+	
 	conf.Username = strings.TrimSpace(request.FormValue("Username"))
 	conf.Password = request.FormValue("Password")
 
 	if conf.Username == "" || conf.Password == "" {
-		writer.Write([]byte("请输入登录用户名/密码"))
+		writer.Write([]byte("Please enter login username/password"))
 		return
 	}
 	if conf.Password != oldConf.Password {
 		encryptPasswd, err := util.EncryptByEncryptKey(conf.EncryptKey, conf.Password)
 		if err != nil {
-			writer.Write([]byte("加密失败"))
+			writer.Write([]byte("Encryption failed"))
 			return
 		}
 		conf.Password = encryptPasswd
@@ -86,7 +86,7 @@ func Save(writer http.ResponseWriter, request *http.Request) {
 			(len(oldConf.BackupConfig) == 0 || conf.BackupConfig[i].Pwd != oldConf.BackupConfig[i].Pwd) {
 			encryptPwd, err := util.EncryptByEncryptKey(conf.EncryptKey, conf.BackupConfig[i].Pwd)
 			if err != nil {
-				writer.Write([]byte("加密失败"))
+				writer.Write([]byte("Encryption failed"))
 				return
 			}
 			conf.BackupConfig[i].Pwd = encryptPwd
@@ -107,16 +107,16 @@ func Save(writer http.ResponseWriter, request *http.Request) {
 	if conf.SecretKey != "" && conf.SecretKey != oldConf.SecretKey {
 		secretKey, err := util.EncryptByEncryptKey(conf.EncryptKey, conf.SecretKey)
 		if err != nil {
-			writer.Write([]byte("加密失败"))
+			writer.Write([]byte("Encryption failed"))
 			return
 		}
 		conf.SecretKey = secretKey
 	}
 
-	// 保存到用户目录
+	
 	err := conf.SaveConfig()
 
-	// 没有错误
+	
 	if err == nil {
 		conf.CreateBucketIfNotExist()
 		if request.URL.Query().Get("backupAll") == "true" {
@@ -127,15 +127,15 @@ func Save(writer http.ResponseWriter, request *http.Request) {
 			if err == nil {
 				go client.RunByIdx(idx)
 			} else {
-				log.Println("索引号不正确" + request.URL.Query().Get("backupIdx"))
+				log.Println("Index number is incorrect" + request.URL.Query().Get("backupIdx"))
 			}
 		}
-		// 重新进行循环
+		
 		client.StopRunLoop()
 		go client.RunLoop(100 * time.Millisecond)
 	}
 
-	// 回写错误信息
+	
 	if err == nil {
 		writer.Write([]byte("ok"))
 	} else {
