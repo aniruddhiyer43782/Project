@@ -1,0 +1,192 @@
+package entity
+
+import (
+	"backup-x/util"
+	"errors"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+)
+
+// S3Config holds S3 object storage configuration
+type S3Config struct {
+	Endpoint   string
+	AccessKey  string
+	SecretKey  string
+	BucketName string
+	Region     string
+}
+
+var ErrS3Empty = errors.New("S3 config is empty")
+
+// CheckNotEmpty checks if the S3 configuration is complete
+func (s3Config S3Config) CheckNotEmpty() bool {
+	return s3Config.Endpoint != "" && s3Config.AccessKey != "" &&
+		s3Config.SecretKey != "" && s3Config.BucketName != ""
+}
+
+// getSession creates an AWS session for S3 operations
+func (s3Config S3Config) getSession() (*session.Session, error) {
+
+	if !s3Config.CheckNotEmpty() {
+		return nil, ErrS3Empty
+	}
+
+	conf, err := GetConfigCache()
+	if err != nil {
+		return nil, err
+	}
+
+	secretKey, err := util.DecryptByEncryptKey(conf.EncryptKey, s3Config.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	creds := credentials.NewStaticCredentials(s3Config.AccessKey, secretKey, "")
+	_, err = creds.Get()
+	if err != nil {
+		log.Println(err)
+	}
+
+	region := "cn-north-1"
+	// Use the configured region if provided
+	if s3Config.Region != "" {
+		region = s3Config.Region
+	} else if strings.HasSuffix(s3Config.Endpoint, "amazonaws.com") {
+		sp := strings.Split(s3Config.Endpoint, ".")
+		if len(sp) > 1 {
+			region = sp[1]
+		}
+	}
+
+	config := &aws.Config{
+		Region:           aws.String(region),
+		Endpoint:         aws.String(s3Config.Endpoint),
+		DisableSSL:       aws.Bool(false),
+		Credentials:      creds,
+		S3ForcePathStyle: aws.Bool(true),
+	}
+
+	mySession, err := session.NewSession(config)
+	return mySession, err
+}
+
+// CreateBucketIfNotExist creates the bucket if it does not exist
+func (s3Config S3Config) CreateBucketIfNotExist() {
+	mySession, err := s3Config.getSession()
+	if err != nil {
+		if err != ErrS3Empty {
+			log.Printf("Failed to create S3 session, ERR: %s\n", err)
+		}
+		return
+	}
+
+	client := s3.New(mySession)
+	head := &s3.HeadBucketInput{
+		Bucket: aws.String(s3Config.BucketName),
+	}
+
+	_, err = client.HeadBucket(head)
+	if err != nil {
+		create := &s3.CreateBucketInput{
+			Bucket: aws.String(s3Config.BucketName),
+		}
+		_, err = client.CreateBucket(create)
+		if err != nil {
+			log.Printf("Failed to create bucket: %s, ERR: %s\n", s3Config.BucketName, err)
+		} else {
+			log.Printf("Successfully created bucket: %s\n", s3Config.BucketName)
+		}
+	}
+}
+
+// UploadFile uploads a file to the S3 bucket
+func (s3Config S3Config) UploadFile(fileName string) {
+	mySession, err := s3Config.getSession()
+	if err != nil {
+		if err != ErrS3Empty {
+			log.Printf("Failed to create S3 session, ERR: %s\n", err)
+		}
+		return
+	}
+
+	log.Printf("%s is being uploaded to S3...\n", fileName)
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer file.Close()
+
+	uploader := s3manager.NewUploader(mySession)
+	_, err = uploader.Upload(&s3manager.UploadInput{
+		Bucket: aws.String(s3Config.BucketName),
+		Key:    aws.String(fileName),
+		Body:   file,
+	})
+	if err != nil {
+		log.Printf("Failed to upload %s to S3. ERR: %s \n", fileName, err)
+	} else {
+		log.Printf("%s successfully uploaded to S3\n", fileName)
+	}
+}
+
+// ListFiles lists files in the S3 bucket under a project path
+func (s3Config S3Config) ListFiles(projectPath string) (fileNames []string, err error) {
+	mySession, err := s3Config.getSession()
+	if err != nil {
+		if err != ErrS3Empty {
+			log.Printf("Failed to create S3 session, ERR: %s\n", err)
+		}
+		return nil, err
+	}
+
+	svc := s3.New(mySession)
+	params := &s3.ListObjectsInput{
+		Bucket: aws.String(s3Config.BucketName),
+		Prefix: aws.String(projectPath),
+	}
+
+	resp, err := svc.ListObjects(params)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range resp.Contents {
+		fileNames = append(fileNames, *item.Key)
+	}
+
+	return fileNames, err
+}
+
+// DeleteFile deletes a file from the S3 bucket
+func (s3Config S3Config) DeleteFile(filePath string) error {
+	mySession, err := s3Config.getSession()
+	if err != nil {
+		if err != ErrS3Empty {
+			log.Printf("Failed to create S3 session, ERR: %s\n", err)
+		}
+		return err
+	}
+
+	svc := s3.New(mySession)
+	_, err = svc.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: aws.String(s3Config.BucketName),
+		Key:    aws.String(filePath),
+	})
+	if err != nil {
+		return err
+	}
+
+	return svc.WaitUntilObjectNotExists(&s3.HeadObjectInput{
+		Bucket: aws.String(s3Config.BucketName),
+		Key:    aws.String(filePath),
+	})
+}
