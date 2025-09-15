@@ -74,6 +74,6 @@ func BasicAuth(f ViewFunc) ViewFunc {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 		
 		w.WriteHeader(http.StatusUnauthorized)
-		log.Printf("%s 请求登录!\n", r.RemoteAddr)
+		log.Printf("%s requested login!\n", r.RemoteAddr)
 	}
 }
