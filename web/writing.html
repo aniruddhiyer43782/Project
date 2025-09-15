@@ -1,0 +1,451 @@
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="jie">
+  <title>Backup-X</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="/static/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/common.css">
+  <script src="/static/jquery-3.5.1.min.js"></script>
+  <script src="/static/bootstrap.min.js"></script>
+  <script src="/static/layer/layer.js"></script>
+</head>
+
+<body>
+  <header>
+    <div class="navbar navbar-dark bg-dark shadow-sm">
+      <div class="container d-flex justify-content-between">
+        <a href="/" class="navbar-brand d-flex align-items-center">
+          <strong>Backup-X</strong>
+        </a>
+        <a href="https://github.com/jeessy2/backup-x" target="_blank" style="color: white">
+          <strong>Github | Backup-X</strong>
+          <span class="badge badge-secondary">
+            {{.Version}}
+          </span>
+        </a>
+      </div>
+    </div>
+  </header>
+  
+  <main role="main" style="margin-top: 30px">
+    <div class="row">
+      <div class="col-md-6 offset-md-3">
+        <form>
+
+          <button class="btn btn-primary submit_btn" style="margin-bottom: 15px;">Save</button>
+          <button class="btn btn-primary submit_btn_backup_idx" style="margin-bottom: 15px;margin-left: 15px;">Save & 立即备份选中</button>
+          <button class="btn btn-warning submit_btn_backup_all" style="margin-bottom: 15px;margin-left: 15px;">Save & 立即备份全部</button>
+
+          <div class="alert" style="display: none;">
+            <strong id="resultMsg"></strong>
+          </div>
+
+          <div class="portlet">
+            <h5 class="portlet__head">备份设置</h5>
+            <div class="portlet__body">
+              <nav>
+                <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                  {{range $i, $v := .BackupConfig}}
+                  <a class="nav-item nav-link {{if eq $i 0}}active{{end}}" id="id_{{$i}}" data-toggle="tab" href="#content_{{$i}}" onclick="contentChange('{{$i}}')" role="tab">
+                    {{if eq $v.ProjectName ""}}
+                    {{$i}}
+                    {{else}}
+                    {{$v.ProjectName}}
+                    {{end}}
+                    {{if ne $v.Enabled 0}}
+                    <span class="badge badge-pill badge-warning">停用</span>
+                    {{end}}
+                  </a>
+                  {{end}}
+                </div>
+              </nav>
+              <div class="tab-content" id="nav-tabContent">
+                {{range $i, $v := .BackupConfig}}
+                <div class="tab-pane fade {{if eq $i 0}}show active{{end}}" id="content_{{$i}}" role="tabpanel">
+                  <br/>
+                  <div class="form-group row">
+                    <label for="ProjectName_{{$i}}" class="col-sm-2 col-form-label">项目名称</label>
+                    <div class="col-sm-10">
+                      <input class="form-control" name="ProjectName" id="ProjectName_{{$i}}" rows="3" value="{{$v.ProjectName}}" onchange="projectNameChange(this)" aria-describedby="ProjectName_help">
+                      <small id="ProjectName_help" class="form-text text-muted">请输入项目名称，一般取数据库名称，并确保名称不重复</small>
+                    </div>
+                  </div>
+            
+                  <div class="form-group row">
+                    <label for="Command_{{$i}}" class="col-sm-2 col-form-label">备份脚本</label>
+                    <div class="col-sm-10">
+                      <textarea class="form-control" name="Command" id="Command_{{$i}}" rows="3" aria-describedby="Command_help">{{$v.Command}}</textarea>
+                      <small id="Command_help" class="form-text text-muted">
+                        日期变量 #{DATE} ,密码变量 #{PWD} ,对象存储变量: #{Endpoint} #{AccessKey} #{SecretKey} #{BucketName}
+                        <br/>例: mysqldump -h192.168.1.11 -uroot -p#{PWD} db-name > #{DATE}.sql <a target="blank" href="https://github.com/jeessy2/backup-x#备份脚本参考">备份脚本参考</a> 
+                      </small>
+                    </div>
+                  </div>
+
+                  <div class="form-group row">
+                    <label for="Pwd_{{$i}}" class="col-sm-2 col-form-label">密码变量</label>
+                    <div class="col-sm-10">
+                      <input type="password" class="form-control" name="Pwd" id="Pwd_{{$i}}" value="{{$v.Pwd}}">
+                    </div>
+                  </div>
+
+                  <div class="form-group row">
+                    <label for="Enabled_{{$i}}" class="col-sm-2">是否启用</label>
+                    <div class="col-sm-4">
+                      <select class="form-control" name="Enabled" id="Enabled_{{$i}}" value="{{$v.Enabled}}" onchange="enabledChange(this)">
+                        <option value="0" {{if eq $v.Enabled 0}}selected{{end}}>启用</option>
+                        <option value="1" {{if eq $v.Enabled 1}}selected{{end}}>停用</option>
+                      </select>
+                    </div>
+                    <label for="BackupType_{{$i}}" class="col-sm-2">备份类型</label>
+                    <div class="col-sm-4">
+                      <select class="form-control" name="BackupType" id="BackupType_{{$i}}" value="{{$v.BackupType}}">
+                        <option value="0" {{if eq $v.BackupType 0}}selected{{end}}>备份数据库</option>
+                        <option value="1" {{if eq $v.BackupType 1}}selected{{end}}>同步文件</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="form-group row">
+                    <label for="SaveDays_{{$i}}" class="col-sm-2 col-form-label">本地保存(天)</label>
+                    <div class="col-sm-4">
+                      <input type="number" class="form-control" name="SaveDays" id="SaveDays_{{$i}}" value="{{$v.SaveDays}}" min="1">
+                    </div>
+                    <label for="SaveDaysS3_{{$i}}" class="col-sm-2 col-form-label">对象存储保存(天)</label>
+                    <div class="col-sm-4">
+                      <input type="number" class="form-control" name="SaveDaysS3" id="SaveDaysS3_{{$i}}" value="{{$v.SaveDaysS3}}" min="1">
+                    </div>
+                  </div>
+
+                  <div class="form-group row">
+                    <label for="StartTime_{{$i}}" class="col-sm-2 col-form-label">备份起始时间</label>
+                    <div class="col-sm-4">
+                      <select class="form-control" name="StartTime" id="StartTime_{{$i}}" value="{{$v.StartTime}}">
+                        <option value="0" {{if eq $v.StartTime 0}}selected{{end}}>0:00</option>
+                        <option value="1" {{if eq $v.StartTime 1}}selected{{end}}>1:00</option>
+                        <option value="2" {{if eq $v.StartTime 2}}selected{{end}}>2:00</option>
+                        <option value="3" {{if eq $v.StartTime 3}}selected{{end}}>3:00</option>
+                        <option value="4" {{if eq $v.StartTime 4}}selected{{end}}>4:00</option>
+                        <option value="5" {{if eq $v.StartTime 5}}selected{{end}}>5:00</option>
+                        <option value="6" {{if eq $v.StartTime 6}}selected{{end}}>6:00</option>
+                        <option value="7" {{if eq $v.StartTime 7}}selected{{end}}>7:00</option>
+                        <option value="8" {{if eq $v.StartTime 8}}selected{{end}}>8:00</option>
+                        <option value="9" {{if eq $v.StartTime 9}}selected{{end}}>9:00</option>
+                        <option value="10" {{if eq $v.StartTime 10}}selected{{end}}>10:00</option>
+                        <option value="11" {{if eq $v.StartTime 11}}selected{{end}}>11:00</option>
+                        <option value="12" {{if eq $v.StartTime 12}}selected{{end}}>12:00</option>
+                        <option value="13" {{if eq $v.StartTime 13}}selected{{end}}>13:00</option>
+                        <option value="14" {{if eq $v.StartTime 14}}selected{{end}}>14:00</option>
+                        <option value="15" {{if eq $v.StartTime 15}}selected{{end}}>15:00</option>
+                        <option value="16" {{if eq $v.StartTime 16}}selected{{end}}>16:00</option>
+                        <option value="17" {{if eq $v.StartTime 17}}selected{{end}}>17:00</option>
+                        <option value="18" {{if eq $v.StartTime 18}}selected{{end}}>18:00</option>
+                        <option value="19" {{if eq $v.StartTime 19}}selected{{end}}>19:00</option>
+                        <option value="20" {{if eq $v.StartTime 20}}selected{{end}}>20:00</option>
+                        <option value="21" {{if eq $v.StartTime 21}}selected{{end}}>21:00</option>
+                        <option value="22" {{if eq $v.StartTime 22}}selected{{end}}>22:00</option>
+                        <option value="23" {{if eq $v.StartTime 23}}selected{{end}}>23:00</option>
+                      </select>
+                    </div>
+                    <label for="Period_{{$i}}" class="col-sm-2 col-form-label">备份周期(分钟)</label>
+                    <div class="col-sm-4">
+                      <input type="number" class="form-control" name="Period" id="Period_{{$i}}" value="{{$v.Period}}" min="1">
+                    </div>
+                  </div>
+
+                </div>
+                {{end}}
+              </div>
+
+            </div>
+          </div>
+
+          <div class="portlet">
+            <h5 class="portlet__head">服务配置</h5>
+            <div class="portlet__body">
+
+              <div class="form-group row">
+                <label for="Username" class="col-sm-2 col-form-label">登录用户名</label>
+                <div class="col-sm-10">
+                  <input class="form-control" name="Username" id="Username" value="{{.Username}}" aria-describedby="Username_help" required>
+                  <small id="Username_help" class="form-text text-muted">必须输入</small>
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label for="Password" class="col-sm-2 col-form-label">登录密码</label>
+                <div class="col-sm-10">
+                  <input class="form-control" type="password" name="Password" id="Password" value="{{.Password}}" aria-describedby="password_help" required>
+                  <small id="password_help" class="form-text text-muted">必须输入</small>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="portlet">
+            <h5 class="portlet__head">Webhook通知</h5>
+            <div class="portlet__body">
+
+              <div class="form-group row">
+                <label for="WebhookURL" class="col-sm-2 col-form-label">URL</label>
+                <div class="col-sm-10">
+                  <input class="form-control" name="WebhookURL" id="WebhookURL" value="{{.WebhookURL}}" aria-describedby="WebhookURL_help">
+                  <small id="WebhookURL_help" class="form-text text-muted">
+                    <a target="blank" href="https://github.com/jeessy2/backup-x#webhook">点击参考官方Webhook说明</a><br/>
+                    支持的变量#{projectName}, #{fileName}, #{fileSize}, #{result}, 
+                  </small>
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label for="WebhookRequestBody" class="col-sm-2 col-form-label">RequestBody</label>
+                <div class="col-sm-10">
+                  <textarea class="form-control" id="WebhookRequestBody" name="WebhookRequestBody" rows="3" aria-describedby="WebhookRequestBody_help">
+{{- .WebhookRequestBody -}}
+                  </textarea>
+                  <small id="WebhookRequestBody_help" class="form-text text-muted">
+                    RequestBody为空GET请求，不为空POST请求。支持的变量同上
+                  </small>
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label"></label>
+                <div class="col-sm-10">
+                  <button class="btn btn-primary btn-sm" id="webhookTestBtn" aria-describedby="webhookTestBtn_help">模拟测试Webhook</button>
+                  <small id="webhookTestBtn_help" class="form-text text-muted"></small>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="portlet">
+            <h5 class="portlet__head">对象存储配置</h5>
+            <div class="portlet__body">
+
+              <div class="form-group row">
+                <label for="Endpoint" class="col-sm-2 col-form-label">Endpoint</label>
+                <div class="col-sm-10">
+                  <input class="form-control" name="Endpoint" id="Endpoint" value="{{.Endpoint}}" aria-describedby="Endpoint_help">
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label for="AccessKey" class="col-sm-2 col-form-label">AccessKey</label>
+                <div class="col-sm-10">
+                  <input class="form-control" name="AccessKey" id="AccessKey" value="{{.AccessKey}}" aria-describedby="AccessKey_help">
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label for="SecretKey" class="col-sm-2 col-form-label">SecretKey</label>
+                <div class="col-sm-10">
+                  <input class="form-control" type="password" name="SecretKey" id="SecretKey" value="{{.SecretKey}}" aria-describedby="SecretKey_help">
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label for="BucketName" class="col-sm-2 col-form-label">BucketName</label>
+                <div class="col-sm-10">
+                  <input class="form-control" name="BucketName" id="BucketName" value="{{.BucketName}}" aria-describedby="BucketName_help">
+                </div>
+              </div>
+
+              <div class="form-group row">
+                <label for="Region" class="col-sm-2 col-form-label">Region</label>
+                <div class="col-sm-10">
+                  <input class="form-control" name="Region" id="Region" value="{{.Region}}" aria-describedby="Region_help">
+                  <small id="Region_help" class="form-text text-muted">可选，如果为空将自动从 Endpoint 推断区域，默认使用 cn-north-1</small>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <button class="btn btn-primary submit_btn" style="margin-bottom: 15px;">Save</button>
+          <button class="btn btn-primary submit_btn_backup_idx" style="margin-bottom: 15px;margin-left: 15px;">Save & 立即备份选中</button>
+          <button class="btn btn-warning submit_btn_backup_all" style="margin-bottom: 15px;margin-left: 15px;">Save & 立即备份全部</button>
+        </form>
+      </div>
+
+      <div class="col-md-3">
+        <div class="nav nav-tabs" role="tablist" style="margin-top: 50px;">
+          <a class="nav-item nav-link active" href="#x0" data-toggle="tab" onclick="changeLog(1)" role="tab">
+            备份日志
+          </a>
+          <a class="nav-item nav-link" href="#x1" data-toggle="tab" onclick="changeLog(2)" role="tab">
+            登录日志
+          </a>
+          <a class="nav-item nav-link" href="#x2" data-toggle="tab" onclick="changeLog(0)" role="tab">
+            全部日志
+          </a>
+        </div>
+        
+        <p class="font-weight-light text-break" style="margin-top: 10px;font-size: 13px;" id="logs"></p>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="clearLogBtn">清空日志</button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let contentIdx = 0
+    let logType = 1
+    let logList = [] // 0：所有日志；1：日常日志；2：登录日志
+
+    function contentChange(i) {
+      contentIdx = i
+    }
+    
+    function changeLog(type = 0) {
+      logType = type
+      const curLogList = logList[logType]
+      const totalLogList = logList[0]
+      
+      const queryPageCount = totalLogList.filter(one => one.includes('请求登录')).length
+      const failedCount = totalLogList.filter(one => one.includes('登录失败')).length
+      const backupCount = totalLogList.filter(one => one.includes('正在备份项目')).length
+      
+      const html = `备份执行次数：${backupCount}次<br/>`+
+                    `历史页面访问次数：${queryPageCount}<br/>` +
+                    `历史登录失败：${failedCount}个<br/>` +
+              
+                    `<br/>` + curLogList.join('<br/>')
+      $("#logs").html(html)
+    }
+    
+    function showLayer(target) {
+      let oriTip = target.getAttribute('tip')
+      const newTip = oriTip.split('\n').join('<br/>')
+      const message = newTip
+              .replace(/(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}\s*INFO\s*:)/gm, '<span style="color: #d8d8d8">$1</span>')
+              .replace(/(\d{4}\/\\d{2}\/\d{2} \d{2}:\d{2}:\d{2}\s*ERROR\s*:)/gm, '<span style="color: #f12e2e">$1</span>')
+      layer.open({
+        type: 1, // page 层类型
+        area: ['800px', '600px'],
+        title: '运行信息',
+        offset: '8%',
+        shade: 0.6, // 遮罩透明度
+        shadeClose: true, // 点击遮罩区域，关闭弹层
+        maxmin: true, // 允许全屏最小化
+        anim: 0, // 0-6 的动画形式，-1 不开启
+        content: `<div style="padding: 10px 20px; font-size: 14px;line-height: 26px;">${message}</div>`
+      });
+    }
+
+    $(function(){
+      $(".submit_btn,.submit_btn_backup_all,.submit_btn_backup_idx").on('click',function(e) {
+        e.preventDefault();
+        $('body').animate({ scrollTop: 0 }, 300);
+        let url = "/save"
+        if(e.target.classList.contains("submit_btn_backup_all")) {
+          url += "?backupAll=true"
+        }
+        if(e.target.classList.contains("submit_btn_backup_idx")) {
+          url += "?backupIdx="+contentIdx
+        }
+        $.ajax({
+          method: "POST",
+          url: url,
+          data: $('form').serialize(),
+          success: function (result) {
+            $('.alert').css("display", "block");
+            if (result !== "ok") {
+              $('.alert').addClass("alert-danger").removeClass("alert-success")
+              $('#resultMsg').html(result)
+            } else {
+              // ok
+              $('.alert').addClass("alert-success").removeClass("alert-danger")
+              $('#resultMsg').html("保存成功")
+              setTimeout(() => {
+                getLogs()
+              }, 800)
+              setTimeout(function(){
+                $('.alert').css("display", "none");
+              }, 3000)
+            }
+          },
+          error: function(jqXHR) {
+            alert(jqXHR.statusText);
+          }
+        })
+      })
+
+    })
+
+    // projectNameChange
+    function projectNameChange(that) {
+      let id = $(that).attr("id").split("_")[1]
+      let name = $(that).val()
+      let enabled = +$("#Enabled_"+id).val() === 0
+      $("#id_"+id).html(enabled ? name:name+'<span class="badge badge-pill badge-warning">停用</span>')
+    }
+    // enabledChange
+    function enabledChange(that) {
+      let id = $(that).attr("id").split("_")[1]
+      let name = $("#ProjectName_"+id).val()
+      let enabled = +$(that).val() === 0
+      $("#id_"+id).html(enabled ? name:name+'<span class="badge badge-pill badge-warning">停用</span>')
+    }
+  </script>
+
+  <script>
+    function getLogs() {
+      $.get("/logs", function(result){
+        const curList = result.split("<br/>").filter(one => one.length)
+
+        logList[0] = curList.map(one => one)
+        logList[1] = curList.filter(one => !one.includes("登录"))
+        logList[2] = curList.filter(one => one.includes("登录"))
+        
+        changeLog(logType)
+      })
+    }
+    getLogs()
+    setInterval(getLogs, 5 * 1000)
+    $(function(){
+      $("#clearLogBtn").on("click", function(e) {
+        e.preventDefault();
+        $.ajax({
+            method: "GET",
+            url: "/clearLog",
+            success: function() {
+              getLogs()
+            },
+            error: function(jqXHR) {
+              alert(jqXHR.statusText);
+            }
+        })
+      })
+    })
+  </script>
+
+  <script>
+    $(function(){
+      $("#webhookTestBtn").on("click", function(e) {
+        e.preventDefault();
+        $.ajax({
+            method: "POST",
+            url: "/webhookTest",
+            data: {"URL": $("#WebhookURL").val(), "RequestBody": $("#WebhookRequestBody").val()},
+            success: function() {
+              $("#webhookTestBtn_help").text("提交模拟测试成功, 如修改记得保存配置")
+              setTimeout(function(){
+                $("#webhookTestBtn_help").text("")
+              }, 5000)
+            },
+            error: function(jqXHR) {
+              alert(jqXHR.statusText);
+            }
+          })
+      })
+    })
+  </script>
+</body>
+</html>
