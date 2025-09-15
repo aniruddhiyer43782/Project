@@ -15,6 +15,3 @@
     -v /opt/backup-x-files:/app/backup-x-files \
     jeessy/backup-x
   ```
-
-  ![avatar](https://raw.githubusercontent.com/jeessy2/backup-x/master/backup-x-web.png)
-
