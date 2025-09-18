@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup & Storage System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="settings-panel">
+            <div class="header">
+                <button class="action-btn primary">Save & Back Up Now</button>
+                <button class="action-btn">Save</button>
+                <button class="action-btn">Back to App List</button>
+            </div>
+
+            <div class="form-section">
+                <h2>File Management</h2>
+                <div class="form-group">
+                    <label for="file-upload">Select Files to Upload</label>
+                    <input type="file" id="file-upload" class="file-input" multiple>
+                    <button id="upload-btn" class="form-btn">Upload Files</button>
+                </div>
+                <div class="form-group">
+                    <label>Uploaded Files</label>
+                    <div id="file-list" class="file-list-container">
+                        <p>No files uploaded yet.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Backup Settings</h2>
+                <div class="form-group">
+                    <label for="project-name">Project Name</label>
+                    <input type="text" id="project-name" value="Corporate File System & Recover System">
+                </div>
+                <div class="form-group">
+                    <label for="backup-script">Backup Script</label>
+                    <textarea id="backup-script" rows="4">This is out DC DR assignment for IS</textarea>
+                </div>
+                 <div class="form-group">
+                    <label for="password-variable">Password variable</label>
+                    <input type="password" id="password-variable" value="secretpassword">
+                </div>
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label for="is-enabled">Is it enabled?</label>
+                        <label class="switch">
+                            <input type="checkbox" id="is-enabled" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="backup-type">Backup Type</p>
+                        <select id="backup-type">
+                            <option>Synchronize files</option>
+                            <option>Full Backup</option>
+                            <option>Incremental Backup</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="local-storage">Local storage (days)</label>
+                        <input type="number" id="local-storage" value="18">
+                    </div>
+                    <div class="form-group">
+                        <label for="retention">Object storage retention (days)</label>
+                        <input type="number" id="retention" value="365">
+                    </div>
+                    <div class="form-group">
+                        <label for="start-time">Backup start time</label>
+                        <input type="time" id="start-time" value="03:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="cycle">Backup cycle (minutes)</label>
+                        <input type="number" id="cycle" value="1440">
+                    </div>
+                </div>
+            </div>
+
+             <div class="form-section">
+                <h2>Service Configuration</h2>
+                 <div class="form-group">
+                    <label for="login-username">Login username</label>
+                    <input type="text" id="login-username" value="mrs">
+                </div>
+                 <div class="form-group">
+                    <label for="login-password">Login password</label>
+                    <input type="password" id="login-password" value="password123">
+                </div>
+            </div>
+        </div>
+
+        <div class="log-panel">
+            <div class="log-tabs">
+                <span class="tab active">Backup Log</span>
+                <span class="tab">Login Log</span>
+                <span class="tab">All Logs</span>
+            </div>
+            <div class="log-content" id="log-content">
+                </div>
+            <div class="log-footer">
+                <button id="clear-log-btn">Clear logs</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
